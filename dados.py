@@ -1,21 +1,19 @@
-"""Dados didáticos: energias em kWh por intervalo de uma hora; vento em m/s."""
-from copy import deepcopy
+# Dados de exemplo da colônia. Energia em kWh e vento em m/s.
+# Cada execução representa um período de uma hora.
 
-HISTORICO = {'vento': [8, 10, 12], 'energia_eolica': [20, 25, 30]}
-CENARIOS = {
-    'deficit': {'reserva': 40, 'capacidade': 100, 'solar': 20,
-                'vento': 8, 'consumos': {'suporte_vida': 30, 'pesquisa': 25, 'lazer': 15}},
-    'excedente': {'reserva': 40, 'capacidade': 100, 'solar': 60,
-                  'vento': 8, 'consumos': {'suporte_vida': 20, 'pesquisa': 5, 'lazer': 5}},
-    'equilibrio': {'reserva': 60, 'capacidade': 100, 'solar': 40,
-                   'vento': 12, 'consumos': {'suporte_vida': 30, 'pesquisa': 25, 'lazer': 15}},
-}
-
-def carregar_cenario(nome):
-    """Monta hierarquia independente para cada execução."""
-    c = deepcopy(CENARIOS[nome])
-    return {'nome': 'Aurora', 'clima': {'vento': c['vento']},
-            'sistemas': {'energetico': {'solar': {'energia': c['solar']},
-                                      'eolico': {'historico': deepcopy(HISTORICO)},
-                                      'bateria': {'reserva': c['reserva'], 'capacidade': c['capacidade']}},
-                         'consumidores': c['consumos']}}
+def carregar_dados():
+    return {
+        'nome': 'Aurora',
+        'clima': {'vento': 8},
+        'sistemas': {
+            'energetico': {
+                'solar': {'energia': 20},
+                'eolico': {
+                    'vento_historico': [8, 10, 12],
+                    'energia_historica': [20, 25, 30]
+                },
+                'bateria': {'reserva': 40, 'capacidade': 100}
+            },
+            'consumidores': {'suporte_vida': 30, 'pesquisa': 25, 'lazer': 15}
+        }
+    }

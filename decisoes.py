@@ -1,53 +1,55 @@
-"""Regras e balanço energético de um intervalo de uma hora."""
-from math import isfinite
-
-LIMITE_RESERVA = 50
-CONSUMO_ALTO = 60
-
-def analisar_energia(geracao, consumo, reserva, capacidade):
-    valores = [geracao, consumo, reserva, capacidade]
-    if not all(isfinite(v) and v >= 0 for v in valores) or reserva > capacidade:
-        raise ValueError('Energias inválidas ou reserva acima da capacidade.')
-    saldo = geracao - consumo
-    armazenada = min(max(saldo, 0), capacidade - reserva)
-    retirada = min(max(-saldo, 0), reserva)
-    return {'saldo': saldo, 'armazenada': armazenada, 'retirada': retirada,
-            'reserva_final': reserva + armazenada - retirada,
-            'deficit_nao_atendido': max(0, -saldo - retirada),
-            'excedente_nao_armazenado': max(0, saldo - armazenada)}
-
-def decidir(geracao, consumidores, reserva, capacidade):
-    """Prioriza suporte à vida; corta lazer e depois pesquisa quando necessário."""
-    if set(consumidores) != {'suporte_vida', 'pesquisa', 'lazer'}:
-        raise ValueError('Informe suporte_vida, pesquisa e lazer.')
-    if not all(isfinite(v) and v >= 0 for v in consumidores.values()):
-        raise ValueError('Consumos devem ser finitos e não negativos.')
-    consumo = sum(consumidores.values())
-    antes = analisar_energia(geracao, consumo, reserva, capacidade)
-    mensagens = []
-    economia = reserva < LIMITE_RESERVA and consumo > CONSUMO_ALTO
-    if reserva < LIMITE_RESERVA:
-        mensagens.append('ALERTA: reduzir consumo; reserva abaixo de 50 kWh.')
-    if economia:
-        mensagens.append('AÇÃO: ativar modo economia.')
+# Compara geração e consumo antes de aplicar as decisões.
+def analisar_energia(geracao, consumo):
     if consumo > geracao:
-        mensagens.append('ALERTA: consumo maior que geração.')
+        return 'ALERTA: consumo maior que geração.'
     elif geracao > consumo:
-        mensagens.append('SUGESTÃO: armazenar energia excedente.')
+        return 'SUGESTÃO: armazenar energia excedente.'
     else:
-        mensagens.append('ESTADO: geração e consumo em equilíbrio.')
-    ativos = dict(consumidores)
-    desligados = []
-    for nome in ['lazer', 'pesquisa']:
-        if economia or sum(ativos.values()) > geracao + reserva:
-            ativos[nome] = 0
-            desligados.append(nome)
-    if desligados:
-        mensagens.append('AÇÃO: desligar ' + ', '.join(desligados) + '; manter suporte à vida ligado.')
-    depois = analisar_energia(geracao, sum(ativos.values()), reserva, capacidade)
-    if depois['deficit_nao_atendido'] > 0:
-        mensagens.append('EMERGÊNCIA: energia insuficiente para suporte à vida; solicitar fonte auxiliar.')
-    if depois['excedente_nao_armazenado'] > 0:
-        mensagens.append('ALERTA: bateria cheia; limitar geração ou realocar excedente.')
-    return {'mensagens': mensagens, 'modo_economia': economia, 'consumo_original': consumo,
-            'consumos_apos_decisao': ativos, 'antes': antes, 'depois': depois}
+        return 'ESTADO: geração e consumo em equilíbrio.'
+
+
+# O suporte à vida tem prioridade sobre pesquisa e lazer.
+def tomar_decisoes(geracao, consumidores, reserva):
+    consumo = sum(consumidores.values())
+    mensagens = []
+    consumos_ajustados = consumidores.copy()
+
+    if reserva < 50:
+        mensagens.append('ALERTA: reduzir consumo; reserva abaixo de 50 kWh.')
+
+    if reserva < 50 and consumo > 60:
+        mensagens.append('AÇÃO: ativar modo economia.')
+        consumos_ajustados['lazer'] = 0
+        consumos_ajustados['pesquisa'] = 0
+        mensagens.append('AÇÃO: desligar lazer e pesquisa.')
+
+    # Se ainda faltar energia, desligar os sistemas não essenciais.
+    for sistema in ['lazer', 'pesquisa']:
+        if sum(consumos_ajustados.values()) > geracao + reserva:
+            if consumos_ajustados[sistema] > 0:
+                consumos_ajustados[sistema] = 0
+                mensagens.append('AÇÃO: desligar ' + sistema + '.')
+
+    mensagens.append('PRIORIDADE: manter suporte à vida ligado.')
+    if sum(consumos_ajustados.values()) > geracao + reserva:
+        mensagens.append('EMERGÊNCIA: energia insuficiente; solicitar fonte auxiliar.')
+
+    return consumos_ajustados, mensagens
+
+
+# Atualiza a reserva respeitando a capacidade da bateria.
+def atualizar_reserva(geracao, consumo, reserva, capacidade):
+    saldo = geracao - consumo
+    nova_reserva = reserva + saldo
+    mensagem = ''
+
+    if nova_reserva > capacidade:
+        excedente = nova_reserva - capacidade
+        nova_reserva = capacidade
+        mensagem = 'ALERTA: excedente de ' + str(excedente) + ' kWh sem armazenamento.'
+    elif nova_reserva < 0:
+        falta = -nova_reserva
+        nova_reserva = 0
+        mensagem = 'ALERTA: faltam ' + str(falta) + ' kWh para atender o consumo.'
+
+    return nova_reserva, mensagem
